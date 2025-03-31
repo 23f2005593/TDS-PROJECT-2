@@ -32,7 +32,7 @@ app = Flask(__name__)
 # Initialize OpenAI client
 client = OpenAI(
     api_key=os.getenv("GROQ_API_KEY"),
-    base_url="https://api.groq.com/openai/v1",
+    base_url=os.getenv("base_url"),
 )
 
 def save_upload_file_temp(file_storage) -> Optional[str]:
@@ -1171,7 +1171,7 @@ The query you will return "SELECT SUM(units * price) FROM tickets WHERE LOWER(TR
         
         # Use the LLM to generate the SQL query
         response = client.chat.completions.create(
-            model="gemma2-9b-it",
+            model=os.getenv("model"),
             messages=[
                 {"role": "system", "content": "You are an expert SQL developer."},
                 {"role": "user", "content": prompt}
@@ -1244,7 +1244,7 @@ def compress_image_losslessly(params: Dict) -> Dict:
         output_image_path = os.path.join(temp_dir, "compressed_image.png")
         
         # Use Tinify API for compression
-        tinify_api_key = "DKDVH1KV8wnwrbNrkCKvm1K4SwYR8xCP"
+        tinify_api_key = os.getenv("tinify_api_key")
         
         # Make API request to Tinify
         with open(input_image_path, 'rb') as image_file:
@@ -1998,7 +1998,7 @@ def process_question(question: str, file_path: Optional[str] = None) -> str:
 
         # Otherwise, use the OpenAI model.
         response = client.chat.completions.create(
-            model="gemma2-9b-it",
+            model=os.getenv("model"),
             messages=[
                 {"role": "system", "content": "You are an expert in Tools in Data Science."},
                 {"role": "user", "content": question}
