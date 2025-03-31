@@ -1779,7 +1779,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "get_vscode_s_flag_output",
-            "description": "Get the output of running 'code -s' command in Visual Studio Code",
+            "description": "What is the output of code -s?",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -2324,6 +2324,9 @@ def process_question(question: str, file_path: Optional[str] = None) -> str:
                     return process_zip_csv({"url": url})
                 else:
                     return "Error: No file uploaded or URL provided."
+
+        if "code -s" in question.lower() and "output" in question.lower():
+                    return get_vscode_s_flag_output(params)
 
         if "convert" in question.lower() and "json" in question.lower() and ("key=value" in question.lower() or "key-value" in question.lower() or "key = value" in question.lower()):
             url_match = re.search(r'(https?://\S+)', question)
