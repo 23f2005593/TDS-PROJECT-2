@@ -1211,6 +1211,7 @@ def write_documentation_in_markdown(params: Dict = None) -> str:
 def compress_image_losslessly(params: Dict) -> Dict:
     """
     Download an image and compress it using the Tinify API.
+    Returns the compressed image as a temporary file path.
     """
     temp_dir = None
     input_image_path = None
@@ -1241,7 +1242,7 @@ def compress_image_losslessly(params: Dict) -> Dict:
         else:
             return {"error": "No valid image source provided"}
         
-        # Prepare output path
+        # Prepare output path (temporary)
         output_image_path = os.path.join(temp_dir, "compressed_image.png")
         
         # Use Tinify API for compression
@@ -1274,37 +1275,12 @@ def compress_image_losslessly(params: Dict) -> Dict:
             with open(output_image_path, 'wb') as f:
                 f.write(compressed_response.content)
             
-            # Create a persistent file path for the compressed image
-            persistent_dir = os.path.join(os.getcwd(), "compressed_images")
-            os.makedirs(persistent_dir, exist_ok=True)
-            
-            # Clean up old compressed images (keep only the 10 most recent)
-            try:
-                files = sorted(
-                    [os.path.join(persistent_dir, f) for f in os.listdir(persistent_dir) 
-                     if os.path.isfile(os.path.join(persistent_dir, f))],
-                    key=os.path.getmtime
-                )
-                # Delete all but the 10 most recent files
-                for old_file in files[:-10]:
-                    os.remove(old_file)
-            except Exception as e:
-                logger.error(f"Error cleaning up old compressed images: {str(e)}")
-            
-            # Generate a unique filename
-            timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-            file_hash = hashlib.md5(str(timestamp).encode()).hexdigest()[:8]
-            persistent_path = os.path.join(persistent_dir, f"compressed_{file_hash}.png")
-            
-            # Copy the compressed file to the persistent location
-            shutil.copy2(output_image_path, persistent_path)
-            
-            file_size = os.path.getsize(persistent_path)
+            file_size = os.path.getsize(output_image_path)
             
             return {
                 "success": True,
                 "message": f"Compressed image is {file_size} bytes",
-                "file_path": persistent_path,
+                "file_path": output_image_path,
                 "file_size": file_size
             }
         else:
@@ -1322,12 +1298,169 @@ def compress_image_losslessly(params: Dict) -> Dict:
         logger.error(f"Error compressing image: {str(e)}")
         return {"error": str(e)}
     finally:
-        # Clean up temporary files and directories
-        if temp_dir and os.path.exists(temp_dir):
+        # We'll clean up the temp directory in the calling function after reading the file
+        pass
+
+
+def publish_github_pages(params: Dict) -> str:
+    try:
+        import os
+        import requests
+        import base64
+        
+        # Configuration
+        owner = os.getenv("GITHUB_USERNAME")
+        repo = os.getenv("github_page")
+        path = 'index.html'
+        branch = 'main'
+        token = os.getenv("G_TOKEN")
+        
+        # Validate configuration
+        if not owner:
+            return "Error: GITHUB_USERNAME environment variable is not set"
+        if not repo:
+            return "Error: github_page environment variable is not set"
+        if not token:
+            return "Error: G_TOKEN environment variable is not set"
+            
+        logger.info(f"Publishing to GitHub Pages for {owner}/{repo}")
+        
+        # Get email from params
+        email = params.get("email", "23f2005593@ds.study.iitm.ac.in")
+        
+        # Create HTML content as a raw string (using triple quotes to preserve formatting)
+        email_content = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TDS Project Showcase</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+        }}
+        h1 {{
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }}
+        .container {{
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }}
+        .footer {{
+            margin-top: 30px;
+            font-size: 0.9em;
+            color: #7f8c8d;
+            text-align: center;
+        }}
+    </style>
+</head>
+<body>
+    <h1>Tools in Data Science Project Showcase</h1>
+    
+    <div class="container">
+        <h2>About This Project</h2>
+        <p>This project demonstrates various data science tools and techniques implemented as a web service.
+        The service can handle tasks such as:</p>
+        <ul>
+            <li>Image compression</li>
+            <li>File processing and analysis</li>
+            <li>Data transformation and extraction</li>
+            <li>GitHub repository management</li>
+            <li>Mathematical calculations</li>
+        </ul>
+    </div>
+    
+    <div class="container">
+        <h2>Contact Information</h2>
+        <p>For more information about this project, please contact:</p>
+        <p><!--email_off-->{email}<!--/email_off--></p>
+    </div>
+    
+    <div class="footer">
+        <p>Created for Tools in Data Science course - {datetime.datetime.now().strftime('%Y')}</p>
+    </div>
+</body>
+</html>'''
+        
+        # Create temporary file
+        email_file = tempfile.mktemp(suffix='.html')
+        
+        # Write HTML content directly to file (not as JSON)
+        try:
+            with open(email_file, 'w', encoding='utf-8') as f:
+                f.write(email_content)
+        except Exception as e:
+            return f'Error creating HTML file: {e}'
+
+        # Read and encode the file - read in binary mode to avoid encoding issues
+        try:
+            with open(email_file, 'rb') as f:
+                content = f.read()
+                encoded_content = base64.b64encode(content).decode('utf-8')
+        except Exception as e:
+            return f'Error reading file: {e}'
+        finally:
+            # Clean up temp file
+            if os.path.exists(email_file):
+                os.remove(email_file)
+
+        # GitHub API URL
+        url = f'https://api.github.com/repos/{owner}/{repo}/contents/{path}'
+        headers = {'Authorization': f'token {token}'}
+
+        # Check if file exists in repository
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            sha = response.json()['sha']
+            message = 'Update index.html with email'
+        elif response.status_code == 404:
+            sha = None
+            message = 'Add index.html with email'
+        else:
+            error_msg = f'Error checking file existence: {response.status_code}'
             try:
-                shutil.rmtree(temp_dir)
-            except Exception as e:
-                logger.error(f"Error removing temp directory: {str(e)}")
+                error_details = response.json()
+                error_msg += f", {error_details.get('message', 'No details')}"
+            except:
+                pass
+            return error_msg
+
+        # Prepare data for PUT request
+        data = {
+            'message': message,
+            'content': encoded_content,
+            'branch': branch
+        }
+        if sha:
+            data['sha'] = sha
+
+        # Upload the file
+        put_response = requests.put(url, headers=headers, json=data)
+        if put_response.status_code in (200, 201):
+            pages_url = f'https://{owner}.github.io/{repo}/'
+            return pages_url
+        else:
+            error_msg = f'Error uploading file: {put_response.status_code}'
+            try:
+                error_details = put_response.json()
+                error_msg += f", {error_details.get('message', 'No details')}"
+            except:
+                pass
+            return error_msg
+            
+    except Exception as e:
+        return f'Error: {str(e)}'
 
 
 # Function mappings
@@ -1349,7 +1482,8 @@ function_mappings = {
     "compare_files_in_zip": compare_files_in_zip,
     "generate_sql_query": generate_sql_query,
     "write_documentation_in_markdown": write_documentation_in_markdown,
-    "compress_image_losslessly": compress_image_losslessly
+    "compress_image_losslessly": compress_image_losslessly,
+    "publish_github_pages": publish_github_pages
 }
 
 tools = [
@@ -1766,6 +1900,27 @@ tools = [
                 "required": []
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "publish_github_pages",
+            "description": "Publish a page to GitHub Pages that includes your email address in email_off tags",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "description": "Email address to include in the HTML file"
+                    },
+                    "repo_name": {
+                        "type": "string",
+                        "description": "Name for the GitHub repository (optional)"
+                    }
+                },
+                "required": ["email"]
+            }
+        }
     }
 ]
 
@@ -1997,6 +2152,32 @@ def process_question(question: str, file_path: Optional[str] = None) -> str:
         if ("compress" in question.lower() or "reduce size" in question.lower()) and "image" in question.lower() and ("lossless" in question.lower() or "identical" in question.lower()):
            return "Image compression request detected. Please use the API endpoint directly."  
 
+
+        # Check for GitHub Pages publishing request
+        if "github pages" in question.lower() and "email" in question.lower() and "<!--email_off-->" in question:
+            
+            # Extract email if present
+            email_pattern = re.compile(r'"email":\s*"([^"]+@[^"]+)"')
+            email_match = email_pattern.search(question)
+            
+            if email_match:
+                params["email"] = email_match.group(1)
+            else:
+                # Try another pattern for email
+                alt_email_pattern = re.compile(r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)')
+                alt_email_match = alt_email_pattern.search(question)
+                if alt_email_match:
+                    params["email"] = alt_email_match.group(1)
+            
+            # Extract repository name if present
+            repo_pattern = re.compile(r'repository(?:\s+named|\s+called)?\s+["\']?([a-zA-Z0-9_-]+)["\']?', re.IGNORECASE)
+            repo_match = repo_pattern.search(question)
+            if repo_match:
+                params["repo_name"] = repo_match.group(1)
+            
+            return publish_github_pages(params) 
+
+
         # Otherwise, use the OpenAI model.
         response = client.chat.completions.create(
             model=os.getenv("model"),
@@ -2012,21 +2193,74 @@ def process_question(question: str, file_path: Optional[str] = None) -> str:
         if not response.choices or not response.choices[0].message:
             return "Error: No response from AI model"
             
+        # Check if there are tool calls in the response
         if response.choices[0].message.tool_calls:
+            logger.info(f"Tool calls detected: {len(response.choices[0].message.tool_calls)}")
+            
             for tool_call in response.choices[0].message.tool_calls:
                 function_name = tool_call.function.name
-                function_args = json.loads(tool_call.function.arguments)
+                logger.info(f"Processing tool call: {function_name}")
                 
-                if function_name in ["run_prettier_and_sha256sum", "process_zip_csv"] and file_path:
-                    key = "uploaded_file_path" if function_name == "run_prettier_and_sha256sum" else "zip_file_path"
-                    function_args[key] = file_path
+                # Parse function arguments
+                try:
+                    function_args = json.loads(tool_call.function.arguments)
+                except json.JSONDecodeError:
+                    logger.error(f"Invalid JSON in tool arguments: {tool_call.function.arguments}")
+                    function_args = {}
                 
+                # Add file path to relevant functions if a file was provided
+                if file_path:
+                    if function_name == "run_prettier_and_sha256sum":
+                        function_args["uploaded_file_path"] = file_path
+                    elif function_name == "process_zip_csv":
+                        function_args["zip_file_path"] = file_path
+                    elif function_name == "compress_image_losslessly":
+                        function_args["uploaded_file_path"] = file_path
+                    elif function_name == "process_multi_encoding_zip":
+                        function_args["uploaded_file_path"] = file_path
+                    elif function_name == "convert_keyvalue_to_json_and_hash":
+                        function_args["uploaded_file_path"] = file_path
+                    elif function_name == "process_zip_replace_text":
+                        function_args["uploaded_file_path"] = file_path
+                    elif function_name == "analyze_zip_file_timestamps":
+                        function_args["uploaded_file_path"] = file_path
+                    elif function_name == "process_zip_move_rename_grep":
+                        function_args["uploaded_file_path"] = file_path
+                    elif function_name == "compare_files_in_zip":
+                        function_args["uploaded_file_path"] = file_path
+                
+                # Check if the function exists in our mappings
                 if function_name not in function_mappings:
+                    logger.error(f"Function {function_name} not found in function_mappings")
                     return f"Error: Function {function_name} not implemented"
-                    
-                result = function_mappings[function_name](function_args)
-                return result
                 
+                # Execute the function
+                try:
+                    logger.info(f"Executing {function_name} with args: {function_args}")
+                    result = function_mappings[function_name](function_args)
+                    
+                    # Special handling for compress_image_losslessly which returns a dict
+                    if function_name == "compress_image_losslessly" and isinstance(result, dict):
+                        if "error" in result:
+                            return f"Error: {result['error']}"
+                        elif "file_path" in result and os.path.exists(result["file_path"]):
+                            # Read the file and encode as base64
+                            with open(result["file_path"], "rb") as f:
+                                img_data = f.read()
+                                return base64.b64encode(img_data).decode('utf-8')
+                        else:
+                            return str(result)
+                    else:
+                        # For all other functions, return the result directly
+                        return result
+                except Exception as e:
+                    logger.error(f"Error executing {function_name}: {str(e)}")
+                    return f"Error executing {function_name}: {str(e)}"
+            
+            # If we get here, it means we didn't return from any tool call
+            return "Error: Failed to process tool calls"
+        
+        # If no tool calls, return the content directly
         return response.choices[0].message.content
     except Exception as e:
         logger.error(f"Error processing question: {str(e)}")
@@ -2057,6 +2291,7 @@ def solve_question():
         # Check if this is an image compression request
         is_compression_request = ("compress" in question.lower() or "reduce size" in question.lower()) and "image" in question.lower() and ("lossless" in question.lower() or "identical" in question.lower())
         
+        # For compression requests, modify the response handling
         if is_compression_request:
             params = {}
             if temp_file_path:
@@ -2076,31 +2311,32 @@ def solve_question():
             if temp_file_path:
                 remove_temp_file(temp_file_path)
             
-            # If successful, return the image file
+            # If successful, return the image as base64
             if "success" in result and result["success"]:
                 file_path = result["file_path"]
                 try:
-                    # Make sure the file exists before trying to send it
+                    # Make sure the file exists before trying to read it
                     if not os.path.exists(file_path):
                         return jsonify({"error": "Compressed file not found"}), 500
                         
-                    # Send the file with appropriate mime type
-                    return send_file(
-                        file_path,
-                        as_attachment=True,
-                        download_name="compressed_image.png",
-                        mimetype="image/png"
-                    )
+                    # Read the file and encode as base64
+                    with open(file_path, "rb") as image_file:
+                        encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
+                    
+                    # Remove the file after reading
+                    os.remove(file_path)
+                    
+                    # Return the base64-encoded image
+                    return jsonify({"answer": encoded_image})
                 except Exception as e:
-                    logger.error(f"Error sending file: {str(e)}")
-                    return jsonify({"error": f"Error sending file: {str(e)}"}), 500
+                    logger.error(f"Error encoding file: {str(e)}")
+                    return jsonify({"error": f"Error encoding file: {str(e)}"}), 500
             else:
                 # Return the error message
                 error_msg = result.get("error", "Unknown error during compression")
                 logger.error(f"Compression error: {error_msg}")
                 return jsonify({"error": error_msg}), 400
-        
-        # For non-compression requests, continue with normal processing
+                # For non-compression requests, continue with normal processing
         answer = process_question(question, temp_file_path)
         
         # Clean up the temporary file
