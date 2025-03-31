@@ -1448,7 +1448,7 @@ def publish_github_pages(params: Dict) -> str:
         # Upload the file
         put_response = requests.put(url, headers=headers, json=data)
         if put_response.status_code in (200, 201):
-            pages_url = f'https://{owner}.github.io/{repo}/'
+            pages_url = f'https://{owner}.github.io/{repo}/?v=1'
             return pages_url
         else:
             error_msg = f'Error uploading file: {put_response.status_code}'
@@ -1461,6 +1461,142 @@ def publish_github_pages(params: Dict) -> str:
             
     except Exception as e:
         return f'Error: {str(e)}'
+
+
+
+def simulate_colab_auth(params: Dict) -> str:
+    """
+    Simulates the result of running the Google Colab authentication script
+    with a specified email address.
+    """
+    try:
+        import hashlib
+        import datetime
+        
+        # Get email from params or use default
+        email = params.get("email", "23f2005593@ds.study.iitm.ac.in")
+        
+        # Validate email format
+        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+            return "Error: Invalid email format"
+        
+        # Get current year for the simulation
+        current_year = datetime.datetime.now().year
+        
+        # Since we can't actually get the token_expiry, we'll use the current year
+        # This is a simulation of what would happen if you ran the code in Colab
+        hash_input = f"{email} {current_year}"
+        
+        # Calculate the hash and get the last 5 characters
+        hash_result = hashlib.sha256(hash_input.encode()).hexdigest()
+        last_five = hash_result[-5:]
+        
+        return last_five
+    except Exception as e:
+        logger.error(f"Error simulating Colab auth: {str(e)}")
+        return f"Error: {str(e)}" 
+
+
+def analyze_image_lightness(params: Dict) -> str:
+    """
+    Analyzes an image and counts pixels with lightness > threshold
+    """
+    temp_dir = None
+    input_image_path = None
+    
+    try:
+        import numpy as np
+        from PIL import Image
+        import colorsys
+        
+        # Get lightness threshold from params
+        threshold = params.get("threshold", 0.207)
+        # Convert to float if it's a string
+        if isinstance(threshold, str):
+            threshold = float(threshold)
+            
+        logger.info(f"Using lightness threshold: {threshold}")
+        
+        # Create temp directory
+        temp_dir = tempfile.mkdtemp()
+        
+        # Get image path or URL
+        image_path = params.get("image_path")
+        url = params.get("url")
+        uploaded_file_path = params.get("uploaded_file_path")
+        
+        # Handle image from uploaded path
+        if uploaded_file_path and os.path.exists(uploaded_file_path):
+            input_image_path = uploaded_file_path
+        # Handle image from URL
+        elif url and url.startswith(('http://', 'https://')):
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            input_image_path = os.path.join(temp_dir, "input_image")
+            with open(input_image_path, 'wb') as f:
+                f.write(response.content)
+        # Handle image from local path
+        elif image_path and os.path.exists(image_path):
+            input_image_path = image_path
+        else:
+            return "Error: No valid image source provided"
+        
+        # Open the image and convert to numpy array
+        try:
+            image = Image.open(input_image_path)
+            rgb = np.array(image) / 255.0
+            
+            # Check if the image has 3 channels (RGB)
+            if len(rgb.shape) < 3 or rgb.shape[2] < 3:
+                # Convert grayscale to RGB if needed
+                if len(rgb.shape) == 2:
+                    # Expand to 3 channels
+                    rgb = np.stack((rgb,) * 3, axis=-1)
+                elif rgb.shape[2] == 1:
+                    # Expand single channel to 3 channels
+                    rgb = np.concatenate((rgb,) * 3, axis=2)
+                elif rgb.shape[2] == 4:
+                    # RGBA image, take only RGB channels
+                    rgb = rgb[:, :, :3]
+                else:
+                    return f"Error: Unsupported image format with {rgb.shape[2]} channels"
+            
+            # Calculate lightness for each pixel
+            # For each pixel, convert RGB to HLS and take the L (lightness) value
+            lightness = np.zeros(rgb.shape[:2])
+            
+            # Handle potential errors with colorsys for certain pixel values
+            for i in range(rgb.shape[0]):
+                for j in range(rgb.shape[1]):
+                    r, g, b = rgb[i, j, :3]
+                    # Clamp values to [0, 1] range to avoid colorsys errors
+                    r = max(0, min(1, r))
+                    g = max(0, min(1, g))
+                    b = max(0, min(1, b))
+                    try:
+                        # Extract lightness from HLS conversion
+                        lightness[i, j] = colorsys.rgb_to_hls(r, g, b)[1]
+                    except Exception as e:
+                        logger.error(f"Error converting pixel at {i},{j}: {str(e)}")
+                        lightness[i, j] = 0
+            
+            # Count pixels with lightness > threshold
+            light_pixels = np.sum(lightness > threshold)
+            
+            # Return the count as an integer
+            return str(int(light_pixels))
+            
+        except Exception as e:
+            logger.error(f"Error processing image: {str(e)}")
+            return f"Error processing image: {str(e)}"
+            
+    except Exception as e:
+        logger.error(f"Error analyzing image lightness: {str(e)}")
+        return f"Error: {str(e)}"
+    finally:
+        # Clean up temporary directory
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)               
 
 
 # Function mappings
@@ -1483,7 +1619,9 @@ function_mappings = {
     "generate_sql_query": generate_sql_query,
     "write_documentation_in_markdown": write_documentation_in_markdown,
     "compress_image_losslessly": compress_image_losslessly,
-    "publish_github_pages": publish_github_pages
+    "publish_github_pages": publish_github_pages,
+    "simulate_colab_auth": simulate_colab_auth,
+    "analyze_image_lightness": analyze_image_lightness
 }
 
 tools = [
@@ -1921,6 +2059,52 @@ tools = [
                 "required": ["email"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "simulate_colab_auth",
+            "description": "Simulate running a Google Colab authentication script with a specified email",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "description": "The email address to use in the simulation (default: 23f2005593@ds.study.iitm.ac.in)"
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_image_lightness",
+            "description": "Analyze an image and count the number of pixels with lightness greater than a threshold",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "image_path": {
+                        "type": "string",
+                        "description": "Local path to the image file"
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "URL to download the image"
+                    },
+                    "uploaded_file_path": {
+                        "type": "string",
+                        "description": "Path to an uploaded image file"
+                    },
+                    "threshold": {
+                        "type": "number",
+                        "description": "Lightness threshold value (default: 0.207)"
+                    }
+                },
+                "required": []
+            }
+        }
     }
 ]
 
@@ -2176,6 +2360,39 @@ def process_question(question: str, file_path: Optional[str] = None) -> str:
                 params["repo_name"] = repo_match.group(1)
             
             return publish_github_pages(params) 
+
+
+        if "google colab" in question.lower() and "run this program" in question.lower() and "hashlib.sha256" in question:
+            # Extract email if present in the question
+            email_pattern = re.compile(r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)')
+            email_match = email_pattern.search(question)
+            
+            params = {}
+            if email_match:
+                params["email"] = email_match.group(1)
+                
+            return simulate_colab_auth(params)  
+
+
+        # Check for image analysis with lightness question
+        if ("google colab" in question.lower() or "colab notebook" in question.lower()) and "image" in question.lower() and "lightness" in question.lower():
+            params = {}
+            
+            # Extract lightness threshold
+            threshold_match = re.search(r'lightness\s*>\s*(\d+\.\d+)', question)
+            if threshold_match:
+                params["threshold"] = float(threshold_match.group(1))
+            
+            # If a file was uploaded, use that
+            if file_path:
+                params["uploaded_file_path"] = file_path
+            else:
+                # Try to extract URL from question
+                url_match = re.search(r'(https?://\S+)', question)
+                if url_match:
+                    params["url"] = url_match.group(1)
+            
+            return analyze_image_lightness(params)  
 
 
         # Otherwise, use the OpenAI model.
