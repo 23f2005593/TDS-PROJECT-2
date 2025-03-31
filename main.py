@@ -1596,7 +1596,156 @@ def analyze_image_lightness(params: Dict) -> str:
     finally:
         # Clean up temporary directory
         if temp_dir and os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)               
+            shutil.rmtree(temp_dir)    
+
+def push_json_to_github(params: Dict) -> str:
+    """
+    Pushes a JSON file to the fastpython GitHub repository
+    """
+    temp_dir = None
+    json_file_path = None
+    
+    try:
+        import json
+        import os
+        import requests
+        import base64
+        import tempfile
+        import shutil
+        
+        # Create temp directory for files if needed
+        temp_dir = tempfile.mkdtemp()
+        
+        # Get GitHub configuration
+        owner = os.getenv("GITHUB_USERNAME")
+        repo = "fastpython"  # Hardcoded repo name
+        token = os.getenv("G_TOKEN")
+        branch = "main"
+        
+        # Validate configuration
+        if not owner:
+            return "Error: GITHUB_USERNAME environment variable is not set"
+        if not token:
+            return "Error: G_TOKEN environment variable is not set"
+            
+        logger.info(f"Pushing JSON file to GitHub repository: {owner}/{repo}")
+        
+        # Get JSON file path or URL
+        url = params.get("url")
+        uploaded_file_path = params.get("uploaded_file_path")
+        
+        # Handle JSON from uploaded path
+        if uploaded_file_path and os.path.exists(uploaded_file_path):
+            json_file_path = uploaded_file_path
+            logger.info(f"Using uploaded file: {json_file_path}")
+        # Handle JSON from URL
+        elif url and url.startswith(('http://', 'https://')):
+            logger.info(f"Downloading JSON from URL: {url}")
+            try:
+                response = requests.get(url, timeout=10)
+                response.raise_for_status()
+                json_file_path = os.path.join(temp_dir, "q-vercel-python.json")
+                with open(json_file_path, 'wb') as f:
+                    f.write(response.content)
+                logger.info(f"Downloaded JSON to: {json_file_path}")
+            except Exception as e:
+                return f"Error downloading JSON from URL: {str(e)}"
+        else:
+            return "Error: No valid JSON file source provided (either upload or URL)"
+        
+        # Read and verify the JSON file
+        try:
+            with open(json_file_path, 'r') as f:
+                student_data = json.load(f)
+                
+            # Print the structure for debugging
+            logger.info(f"JSON data type: {type(student_data)}")
+            
+            # Convert to dictionary if it's a list of key-value pairs
+            if isinstance(student_data, list):
+                # Try to convert list to dictionary if it contains key-value pairs
+                try:
+                    converted_data = {}
+                    for item in student_data:
+                        if isinstance(item, dict) and 'name' in item and 'mark' in item:
+                            converted_data[item['name']] = item['mark']
+                    
+                    if converted_data:
+                        logger.info(f"Converted list of {len(student_data)} items to dictionary with {len(converted_data)} entries")
+                        # Write the converted dictionary back to the file
+                        with open(json_file_path, 'w') as f:
+                            json.dump(converted_data, f, indent=2)
+                        student_data = converted_data
+                    else:
+                        logger.info("Could not convert list to appropriate dictionary format")
+                except Exception as e:
+                    logger.error(f"Error converting list to dictionary: {str(e)}")
+            
+            # Allow any JSON structure to be uploaded, just log the type
+            logger.info(f"Proceeding with JSON data of type: {type(student_data)}")
+            
+        except json.JSONDecodeError:
+            return "Error: Invalid JSON file"
+        except Exception as e:
+            return f"Error reading JSON file: {str(e)}"
+        
+        # Read and encode the file for GitHub
+        try:
+            with open(json_file_path, 'rb') as f:
+                content = f.read()
+                encoded_content = base64.b64encode(content).decode('utf-8')
+        except Exception as e:
+            return f'Error reading file: {str(e)}'
+        
+        # GitHub API URL for the file
+        file_path = "q-vercel-python.json"
+        url = f'https://api.github.com/repos/{owner}/{repo}/contents/{file_path}'
+        headers = {'Authorization': f'token {token}'}
+        
+        # Check if file exists
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            # Update existing file
+            sha = response.json()['sha']
+            data = {
+                'message': 'Update q-vercel-python.json',
+                'content': encoded_content,
+                'sha': sha,
+                'branch': branch
+            }
+        elif response.status_code == 404:
+            # Create new file
+            data = {
+                'message': 'Add q-vercel-python.json',
+                'content': encoded_content,
+                'branch': branch
+            }
+        else:
+            return f'Error checking file existence: {response.status_code}'
+        
+        # Upload the file
+        put_response = requests.put(url, headers=headers, json=data)
+        
+        if put_response.status_code in (200, 201):
+            vercel_url = "https://vixhal-python.vercel.app/api"
+            return f"{vercel_url}"
+        else:
+            error_msg = f'Error uploading file: {put_response.status_code}'
+            try:
+                error_details = put_response.json()
+                error_msg += f", {error_details.get('message', 'No details')}"
+            except:
+                pass
+            return error_msg
+            
+    except Exception as e:
+        logger.error(f"Error pushing JSON to GitHub: {str(e)}")
+        return f"Error: {str(e)}"
+    finally:
+        # Clean up temporary directory
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)  
 
 
 # Function mappings
@@ -1621,7 +1770,8 @@ function_mappings = {
     "compress_image_losslessly": compress_image_losslessly,
     "publish_github_pages": publish_github_pages,
     "simulate_colab_auth": simulate_colab_auth,
-    "analyze_image_lightness": analyze_image_lightness
+    "analyze_image_lightness": analyze_image_lightness,
+    "push_json_to_github": push_json_to_github
 }
 
 tools = [
@@ -2105,6 +2255,27 @@ tools = [
                 "required": []
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "push_json_to_github",
+            "description": "Push a JSON file to the fastpython GitHub repository",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "uploaded_file_path": {
+                        "type": "string",
+                        "description": "Path to an uploaded JSON file"
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "URL to download the JSON file"
+                    }
+                },
+                "required": []
+            }
+        }
     }
 ]
 
@@ -2393,6 +2564,29 @@ def process_question(question: str, file_path: Optional[str] = None) -> str:
                     params["url"] = url_match.group(1)
             
             return analyze_image_lightness(params)  
+
+
+        # Check for pushing JSON to GitHub repository for Vercel
+        if "q-vercel-python.json" in question and "vercel" in question.lower():
+            params = {}
+            
+            # If a file was uploaded, use that
+            if file_path:
+                params["uploaded_file_path"] = file_path
+            else:
+                # Try to extract URL from question
+                url_match = re.search(r'(https?://\S+\.json)', question)
+                if url_match:
+                    params["url"] = url_match.group(1)
+                else:
+                    # Check if "file=" parameter contains a URL
+                    file_url_match = re.search(r'file=\s*(https?://\S+\.json)', question)
+                    if file_url_match:
+                        params["url"] = file_url_match.group(1)
+                    else:
+                        return "Error: No JSON file uploaded or URL provided"
+            
+            return push_json_to_github(params)    
 
 
         # Otherwise, use the OpenAI model.
