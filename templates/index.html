@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TDS Solver</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#8c52ff',
+                            dark: '#5e17eb'
+                        },
+                        secondary: '#00e5ff',
+                        dark: {
+                            DEFAULT: '#121212',
+                            card: '#1e1e1e',
+                            light: '#2d2d2d'
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .bg-gradient-animate {
+            background: linear-gradient(270deg, #8c52ff, #00e5ff);
+            background-size: 200% 200%;
+            animation: gradient 5s ease infinite;
+        }
+        
+        .spinner > div {
+            width: 12px;
+            height: 12px;
+            background-color: #8c52ff;
+            border-radius: 100%;
+            display: inline-block;
+            animation: sk-bouncedelay 1.4s infinite ease-in-out both;
+        }
+
+        .spinner .bounce1 {
+            animation-delay: -0.32s;
+        }
+
+        .spinner .bounce2 {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes sk-bouncedelay {
+            0%, 80%, 100% { 
+                transform: scale(0);
+            } 40% { 
+                transform: scale(1.0);
+            }
+        }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #8c52ff;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #5e17eb;
+        }
+    </style>
+</head>
+<body class="bg-dark text-gray-100 min-h-screen">
+    <div class="flex flex-col md:flex-row min-h-screen">
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header -->
+            <header class="bg-dark-card border-b border-gray-800 py-4 px-6 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <i class="bi bi-braces-asterisk text-2xl text-secondary"></i>
+                    <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-secondary to-primary">TDS Solver</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="h-8 w-8 rounded-full bg-gradient-animate flex items-center justify-center">
+                        <span class="text-xs font-bold">VB</span>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Main Area -->
+            <main class="flex-1 overflow-y-auto p-6 bg-dark">
+                <div class="max-w-4xl mx-auto">
+                    <!-- Question Form Card -->
+                    <div class="bg-dark-card rounded-xl shadow-lg mb-8 overflow-hidden animate__animated animate__fadeIn">
+                        <div class="bg-gradient-to-r from-primary to-primary-dark p-4 relative overflow-hidden">
+                            <h2 class="text-xl font-bold">Ask a Question</h2>
+                            <p class="text-sm text-gray-200">Get answers to your data science problems</p>
+                            <div class="absolute top-0 right-0 w-32 h-full bg-white opacity-10 transform -skew-x-12"></div>
+                        </div>
+                        
+                        <div class="p-6 animate__animated animate__fadeInUp">
+                            <form id="questionForm">
+                                <div class="mb-6">
+                                    <label for="question" class="block text-sm font-medium text-gray-400 mb-2">
+                                        <i class="bi bi-chat-left-text mr-2"></i>Your Question:
+                                    </label>
+                                    <textarea 
+                                        id="question" 
+                                        rows="4" 
+                                        class="w-full bg-dark-light text-white rounded-lg border border-gray-700 p-3 focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50"
+                                        placeholder="Enter your data science problem here..."
+                                        required
+                                    ></textarea>
+                                    <p class="text-xs text-gray-500 mt-1 text-right">
+                                        <i class="bi bi-keyboard mr-1"></i>Pro tip: Press Ctrl+Enter to submit
+                                    </p>
+                                </div>
+                                
+                                <!-- File Input with Tabs -->
+                                <div class="mb-6">
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">
+                                        <i class="bi bi-file-earmark mr-2"></i>File Input (Optional):
+                                    </label>
+                                    <div class="border-b border-gray-700">
+                                        <nav class="flex -mb-px" aria-label="Tabs">
+                                            <button type="button" id="upload-tab" class="py-2 px-4 text-sm font-medium text-white border-b-2 border-primary bg-opacity-10 bg-primary">
+                                                <i class="bi bi-upload mr-1"></i>Upload
+                                            </button>
+                                            <button type="button" id="url-tab" class="py-2 px-4 text-sm font-medium text-gray-400 border-b-2 border-transparent hover:text-gray-300 hover:border-gray-700">
+                                                <i class="bi bi-link-45deg mr-1"></i>URL
+                                            </button>
+                                        </nav>
+                                    </div>
+                                    
+                                    <div id="upload-tab-pane" class="mt-4">
+                                        <input
+                                            type="file"
+                                            id="file"
+                                            class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary-dark"
+                                        >
+                                        <p class="text-xs text-gray-500 mt-2">
+                                            <i class="bi bi-info-circle mr-1"></i>Upload a file if your question requires processing data from a file.
+                                        </p>
+                                    </div>
+                                    
+                                    <div id="url-tab-pane" class="mt-4 hidden">
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i class="bi bi-link-45deg text-gray-500"></i>
+                                            </div>
+                                            <input
+                                                type="url"
+                                                id="fileUrl"
+                                                class="w-full bg-dark-light text-white rounded-lg border border-gray-700 pl-10 p-3 focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50"
+                                                placeholder="https://example.com/data.zip"
+                                            >
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-2">
+                                            <i class="bi bi-info-circle mr-1"></i>Enter a URL to a file if your question references a file online.
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex flex-wrap gap-3">
+                                    <button type="submit" class="px-5 py-3 bg-gradient-to-r from-primary to-primary-dark text-white rounded-lg hover:shadow-lg hover:from-primary-dark hover:to-primary transition-all transform hover:-translate-y-0.5">
+                                        <i class="bi bi-lightning-charge mr-2"></i>Solve Problem
+                                    </button>
+                                    <button type="button" id="generateCurl" class="px-5 py-3 bg-dark-light text-white rounded-lg hover:bg-opacity-80 transition-all transform hover:-translate-y-0.5">
+                                        <i class="bi bi-terminal mr-2"></i>Generate cURL
+                                    </button>
+                                </div>
+                            </form>
+                            
+                            <!-- Loading Indicator -->
+                            <div id="loading" class="hidden text-center my-8">
+                                <div class="spinner inline-block">
+                                    <div class="bounce1"></div>
+                                    <div class="bounce2"></div>
+                                    <div class="bounce3"></div>
+                                </div>
+                                <p class="mt-3 text-gray-300">Processing your request...</p>
+                                <div class="mt-4 w-full h-1.5 bg-dark-light rounded-full overflow-hidden">
+                                    <div class="h-full bg-gradient-to-r from-primary to-secondary animate-pulse-slow" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- cURL Command -->
+                            <div id="curlCommandDiv" class="hidden mt-8">
+                                <div class="flex items-center mb-3">
+                                    <i class="bi bi-terminal text-secondary mr-2"></i>
+                                    <h3 class="text-lg font-medium">cURL Command:</h3>
+                                </div>
+                                <div class="relative">
+                                    <button id="copyBtn" class="absolute right-3 top-3 text-xs px-2 py-1 bg-dark-light text-gray-300 rounded hover:bg-gray-700 transition-colors">
+                                        <i class="bi bi-clipboard mr-1"></i>Copy
+                                    </button>
+                                    <pre id="curlCommand" class="bg-dark-light text-gray-300 p-4 rounded-lg overflow-x-auto text-sm"></pre>
+                                </div>
+                            </div>
+                            
+                            <!-- Results -->
+                            <div id="resultDiv" class="hidden mt-8">
+                                <div id="resultHeader" class="flex items-center mb-3">
+                                    <i class="bi bi-check-circle text-green-500 mr-2"></i>
+                                    <h3 class="text-lg font-medium">Result:</h3>
+                                </div>
+                                <div id="result" class="bg-dark-light text-gray-300 p-4 rounded-lg overflow-x-auto text-sm min-h-[150px] max-h-[500px] overflow-y-auto whitespace-pre-wrap"></div>
+                                <img id="imageResult" class="hidden mt-6 rounded-lg max-w-full" alt="Compressed Image" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+        
+        <!-- Right Sidebar - Recent Results -->
+        <div class="w-full md:w-72 bg-dark-card border-l border-gray-800 md:flex flex-col hidden">
+            <div class="p-4 border-b border-gray-800">
+                <h2 class="text-lg font-semibold">Recent Results</h2>
+            </div>
+            
+            <div class="p-4 flex-1 overflow-y-auto">
+                <div id="recentResults" class="space-y-4">
+                    <!-- Recent results will be added here dynamically -->
+                    <div class="text-center text-gray-500 py-4">
+                        <i class="bi bi-clock-history text-3xl block mb-2"></i>
+                        <p>Your recent results will appear here</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-auto p-4 border-t border-gray-800">
+                <div class="bg-gradient-to-r from-primary to-secondary bg-opacity-10 p-4 rounded-lg">
+                    <h3 class="font-semibold text-white mb-2">About TDS Solver</h3>
+                    <p class="text-sm text-gray-300">This tool helps solve various data science problems including formula calculations, file processing, and more.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('questionForm');
+            const loading = document.getElementById('loading');
+            const resultDiv = document.getElementById('resultDiv');
+            const resultHeader = document.getElementById('resultHeader');
+            const result = document.getElementById('result');
+            const imageResult = document.getElementById('imageResult');
+            const generateCurlBtn = document.getElementById('generateCurl');
+            const curlCommandDiv = document.getElementById('curlCommandDiv');
+            const curlCommand = document.getElementById('curlCommand');
+            const copyBtn = document.getElementById('copyBtn');
+            const fileInput = document.getElementById('file');
+            const fileUrlInput = document.getElementById('fileUrl');
+            const recentResults = document.getElementById('recentResults');
+            
+            // Tab switching
+            const uploadTab = document.getElementById('upload-tab');
+            const urlTab = document.getElementById('url-tab');
+            const uploadTabPane = document.getElementById('upload-tab-pane');
+            const urlTabPane = document.getElementById('url-tab-pane');
+            
+            uploadTab.addEventListener('click', function() {
+                uploadTab.classList.add('text-white', 'border-primary', 'bg-opacity-10', 'bg-primary');
+                uploadTab.classList.remove('text-gray-400', 'border-transparent');
+                urlTab.classList.add('text-gray-400', 'border-transparent');
+                urlTab.classList.remove('text-white', 'border-primary', 'bg-opacity-10', 'bg-primary');
+                
+                uploadTabPane.classList.remove('hidden');
+                urlTabPane.classList.add('hidden');
+            });
+            
+            urlTab.addEventListener('click', function() {
+                urlTab.classList.add('text-white', 'border-primary', 'bg-opacity-10', 'bg-primary');
+                urlTab.classList.remove('text-gray-400', 'border-transparent');
+                uploadTab.classList.add('text-gray-400', 'border-transparent');
+                uploadTab.classList.remove('text-white', 'border-primary', 'bg-opacity-10', 'bg-primary');
+                
+                urlTabPane.classList.remove('hidden');
+                uploadTabPane.classList.add('hidden');
+            });
+            
+            // Generate cURL command
+            generateCurlBtn.addEventListener('click', function() {
+                const question = document.getElementById('question').value.trim();
+                if (!question) {
+                    alert('Please enter a question');
+                    return;
+                }
+                
+                // Check which file input is active
+                const isUrlTabActive = !urlTabPane.classList.contains('hidden');
+                let curlText = `curl -X POST \\\n  "${window.location.origin}/api/" \\\n  -F "question=${question}"`;
+                
+                if (!isUrlTabActive) {
+                    const file = fileInput.files[0];
+                    if (file) {
+                        curlText += ` \\\n  -F "file=@${file.name}"`;
+                    }
+                } else {
+                    const fileUrl = fileUrlInput.value.trim();
+                    if (fileUrl) {
+                        curlText += ` \\\n  -F "file=${fileUrl}"`;
+                    }
+                }
+                
+                // Hide any existing results
+                resultDiv.classList.add('hidden');
+                
+                // Show the curl command
+                curlCommand.textContent = curlText;
+                curlCommandDiv.classList.remove('hidden');
+            });
+            
+            // Copy cURL command
+            copyBtn.addEventListener('click', function() {
+                navigator.clipboard.writeText(curlCommand.textContent)
+                    .then(() => {
+                        // Change button text
+                        copyBtn.innerHTML = '<i class="bi bi-check2 mr-1"></i>Copied!';
+                        copyBtn.classList.add('bg-green-700', 'text-white');
+                        copyBtn.classList.remove('bg-dark-light', 'text-gray-300');
+                        
+                        setTimeout(() => {
+                            copyBtn.innerHTML = '<i class="bi bi-clipboard mr-1"></i>Copy';
+                            copyBtn.classList.remove('bg-green-700', 'text-white');
+                            copyBtn.classList.add('bg-dark-light', 'text-gray-300');
+                        }, 2000);
+                    })
+                    .catch(err => {
+                        console.error('Failed to copy: ', err);
+                        alert('Failed to copy to clipboard');
+                    });
+            });
+            
+            // Form submission
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const question = document.getElementById('question').value.trim();
+                
+                if (!question) {
+                    alert('Please enter a question');
+                    return;
+                }
+                
+                // Check which file input is active
+                const isUrlTabActive = !urlTabPane.classList.contains('hidden');
+                let file = null;
+                let fileUrl = null;
+                
+                if (!isUrlTabActive) {
+                    file = fileInput.files[0];
+                } else {
+                    fileUrl = fileUrlInput.value.trim();
+                }
+                
+                // Check if this is likely an image compression request
+                const isCompressionRequest = 
+                    (question.toLowerCase().includes('compress') || 
+                     question.toLowerCase().includes('reduce size')) && 
+                    question.toLowerCase().includes('image') && 
+                    (question.toLowerCase().includes('lossless') || 
+                     question.toLowerCase().includes('identical'));
+                
+                // Hide previous results
+                resultDiv.classList.add('hidden');
+                curlCommandDiv.classList.add('hidden');
+                imageResult.classList.add('hidden');
+                
+                // Show loading spinner
+                loading.classList.remove('hidden');
+                
+                // Animate progress bar
+                const progressBar = loading.querySelector('.bg-gradient-to-r');
+                progressBar.style.width = '0%';
+                setTimeout(() => {
+                    progressBar.style.width = '100%';
+                    progressBar.style.transition = 'width 2s ease-in-out';
+                }, 100);
+                
+                // Create form data
+                const formData = new FormData();
+                formData.append('question', question);
+                
+                if (file) {
+                    formData.append('file', file);
+                } else if (fileUrl) {
+                    formData.append('file', fileUrl);
+                }
+                
+                // Send request
+                fetch('/api/', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Server error');
+                        });
+                    }
+                    
+                    // For image compression requests, we expect a file response
+                    if (isCompressionRequest && response.headers.get('content-type').includes('image')) {
+                        return response.blob().then(blob => {
+                            const imageUrl = URL.createObjectURL(blob);
+                            imageResult.src = imageUrl;
+                            imageResult.classList.remove('hidden');
+                            result.textContent = 'Image compressed successfully. See below:';
+                            // Set success header
+                            resultHeader.innerHTML = '<i class="bi bi-check-circle text-green-500 mr-2"></i><h3 class="text-lg font-medium">Success:</h3>';
+                            return { success: true, answer: 'Image compressed successfully.' };
+                        });
+                    } else {
+                        return response.json();
+                    }
+                })
+                .then(data => {
+                    // Hide loading
+                    loading.classList.add('hidden');
+                    
+                    // Show result
+                    resultDiv.classList.remove('hidden');
+                    
+                    if (data.answer) {
+                        resultHeader.innerHTML = '<i class="bi bi-check-circle text-green-500 mr-2"></i><h3 class="text-lg font-medium">Result:</h3>';
+                        result.textContent = data.answer;
+                        
+                        // Add to recent results
+                        addToRecentResults(question, data.answer, true);
+                    } else if (data.error) {
+                        resultHeader.innerHTML = '<i class="bi bi-exclamation-circle text-red-500 mr-2"></i><h3 class="text-lg font-medium">Error:</h3>';
+                        result.textContent = data.error;
+                        
+                        // Add to recent results
+                        addToRecentResults(question, data.error, false);
+                    } else if (!data.success) {
+                        resultHeader.innerHTML = '<i class="bi bi-info-circle text-blue-500 mr-2"></i><h3 class="text-lg font-medium">Information:</h3>';
+                        result.textContent = JSON.stringify(data, null, 2);
+                        
+                        // Add to recent results
+                        addToRecentResults(question, 'Information returned', true);
+                    }
+                })
+                .catch(error => {
+                    // Hide loading
+                    loading.classList.add('hidden');
+                    
+                    // Show result with error
+                    resultDiv.classList.remove('hidden');
+                    resultHeader.innerHTML = '<i class="bi bi-exclamation-triangle text-red-500 mr-2"></i><h3 class="text-lg font-medium">Error:</h3>';
+                    result.textContent = error.message || 'An error occurred';
+                    console.error('Error:', error);
+                    
+                    // Add to recent results
+                    addToRecentResults(question, error.message || 'An error occurred', false);
+                });
+            });
+            
+            // Function to add to recent results
+            function addToRecentResults(question, resultText, isSuccess) {
+                // Clear initial message if present
+                const initialMessage = recentResults.querySelector('.text-center.text-gray-500');
+                if (initialMessage) {
+                    recentResults.innerHTML = '';
+                }
+                
+                const resultEl = document.createElement('div');
+                resultEl.className = 'bg-dark-light p-3 rounded-lg animate__animated animate__fadeIn';
+                
+                const truncatedQuestion = question.length > 30 ? question.substring(0, 30) + '...' : question;
+                const truncatedResult = resultText.length > 40 ? resultText.substring(0, 40) + '...' : resultText;
+                
+                resultEl.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400">just now</span>
+                        <span class="bg-${isSuccess ? 'green' : 'red'}-500 bg-opacity-20 text-${isSuccess ? 'green' : 'red'}-400 px-2 py-0.5 rounded text-xs">${isSuccess ? 'Success' : 'Error'}</span>
+                    </div>
+                    <p class="text-sm mt-2 font-medium">${truncatedQuestion}</p>
+                    <p class="text-xs text-gray-400 mt-1">${truncatedResult}</p>
+                `;
+                
+                // Insert at the top
+                if (recentResults.firstChild) {
+                    recentResults.insertBefore(resultEl, recentResults.firstChild);
+                } else {
+                    recentResults.appendChild(resultEl);
+                }
+                
+                // Remove oldest result if more than 5
+                const results = recentResults.querySelectorAll('.bg-dark-light');
+                if (results.length > 5) {
+                    results[results.length - 1].remove();
+                }
+            }
+
+            // Add keyboard shortcut for submission
+            document.addEventListener('keydown', function(e) {
+                // Ctrl+Enter or Cmd+Enter to submit
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    if (document.activeElement === document.getElementById('question')) {
+                        document.getElementById('questionForm').dispatchEvent(new Event('submit'));
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

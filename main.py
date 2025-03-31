@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_file
+from flask import render_template, send_from_directory
 from typing import Optional, Dict, Any
 import os
 import json
@@ -2113,10 +2114,11 @@ def solve_question():
 
 @app.route("/", methods=["GET"])
 def root():
-    return jsonify({
-        "message": "Welcome to the TDS Solver API by Vishal Baraiya",
-        "usage": "POST to /api/ with question (required) and file (optional)"
-    })
+    return render_template('index.html')
+
+@app.route('/ui', methods=['GET'])
+def ui():
+    return render_template('index.html')
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8000)
