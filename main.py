@@ -67,7 +67,7 @@ def download_file_from_url(url: str) -> Optional[str]:
         logger.error(f"Error downloading file: {str(e)}")
         return None
 
-def get_vscode_s_flag_output(params: Dict = None) -> str:
+def get_vscode_s_flag_output():
     try:
         return """Version:          Code 1.96.2 (fabdb6a30b49f79a7aba0f2ad9df9b399473380f, 2024-12-19T10:22:47.216Z)
 OS Version:       Windows_NT x64 10.0.22631
@@ -2326,7 +2326,7 @@ def process_question(question: str, file_path: Optional[str] = None) -> str:
                     return "Error: No file uploaded or URL provided."
 
         if "code -s" in question.lower() and "output" in question.lower():
-                    return get_vscode_s_flag_output(params)
+                    return get_vscode_s_flag_output()
 
         if "convert" in question.lower() and "json" in question.lower() and ("key=value" in question.lower() or "key-value" in question.lower() or "key = value" in question.lower()):
             url_match = re.search(r'(https?://\S+)', question)
